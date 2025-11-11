@@ -1,0 +1,70 @@
+(function () {
+  console.log("🚀 Origami form automation script started (outside iframe)");
+
+  const TARGET_FIELDS = {
+    fld_2244: "א",
+    fld_2243: "ליד",
+  };
+
+  // Function that runs INSIDE the iframe
+  function runInsideFrame(frameDocument) {
+    console.log("📥 Injected inside iframe");
+
+    function fillFields() {
+      let filled = 0;
+      for (const [name, value] of Object.entries(TARGET_FIELDS)) {
+        const el = frameDocument.querySelector(`input[name="${name}"], select[name="${name}"]`);
+        if (el && !el.dataset._autofilled) {
+          el.value = value;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          el.dataset._autofilled = "true";
+          console.log(`✅ Filled ${name} with "${value}"`);
+          filled++;
+        }
+      }
+      return filled === Object.keys(TARGET_FIELDS).length;
+    }
+
+    // Watch the iframe’s DOM for dynamic form load
+    const observer = new MutationObserver(() => {
+      if (fillFields()) {
+        console.log("🎯 All fields filled inside iframe, disconnecting observer");
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(frameDocument.body, { childList: true, subtree: true });
+    console.log("👀 Watching iframe DOM for form fields...");
+  }
+
+  // Wait for Origami to actually load the form iframe
+  function waitForIframe() {
+    const iframe = document.querySelector("#iframe_div iframe");
+    if (!iframe) {
+      console.log("⏳ Waiting for iframe...");
+      setTimeout(waitForIframe, 1000);
+      return;
+    }
+
+    // Wait for iframe to load its document
+    iframe.addEventListener("load", () => {
+      try {
+        const frameDoc = iframe.contentDocument || iframe.contentWindow.document;
+        if (!frameDoc) throw new Error("No iframe document found");
+        runInsideFrame(frameDoc);
+      } catch (err) {
+        console.error("⚠️ Cannot access iframe contents:", err);
+      }
+    });
+
+    console.log("🧭 Iframe detected, waiting for its content load...");
+  }
+
+  // Start after parent page ready
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    waitForIframe();
+  } else {
+    window.addEventListener("DOMContentLoaded", waitForIframe);
+  }
+})();
